@@ -188,7 +188,7 @@ export default function LoyaltyForm({ onCancel }: LoyaltyFormProps) {
                 </Link>{" "}
                 et la{" "}
                 <Link
-                  href="/privacy"
+                  href="/public/privacy"
                   target="_blank"
                   className="text-purple-600 hover:text-purple-700 underline"
                 >

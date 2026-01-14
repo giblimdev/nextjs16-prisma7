@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { UserRole } from "@/lib/generated/prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,6 +35,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Récupérer l'utilisateur actuel
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { roles: true },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Utilisateur introuvable" },
+        { status: 404 }
+      );
+    }
+
+    // Vérifier si le rôle CLIENT existe déjà
+    const hasClientRole = currentUser.roles.includes(UserRole.CLIENT);
+    const updatedRoles: UserRole[] = hasClientRole 
+      ? currentUser.roles 
+      : [...currentUser.roles, UserRole.CLIENT];
+
     // Créer la carte de fidélité avec le bonus de bienvenue
     const fidelity = await prisma.fidelity.create({
       data: {
@@ -54,11 +74,24 @@ export async function POST(req: NextRequest) {
             id: true,
             name: true,
             email: true,
+            roles: true,
           },
         },
         xpPoints: true,
       },
     });
+
+    // Ajouter le rôle CLIENT si nécessaire
+    if (!hasClientRole) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          roles: {
+            set: updatedRoles,
+          },
+        },
+      });
+    }
 
     return NextResponse.json(
       {
@@ -67,9 +100,13 @@ export async function POST(req: NextRequest) {
           id: fidelity.id,
           points: fidelity.points,
           level: fidelity.level,
-          user: fidelity.user,
+          user: {
+            ...fidelity.user,
+            roles: updatedRoles,
+          },
           xpPointsCount: fidelity.xpPoints.length,
         },
+        roleAdded: !hasClientRole,
       },
       { status: 201 }
     );

@@ -205,6 +205,7 @@ model Profil {
 ////////////////////////////
 
 // Table organisation - Stocke les informations des entreprises/magasins
+//on ajoutera un owner le user createur de l'otganisation !non fait!
 model Organization {
   id        String    @id @default(cuid())                                        // Identifiant unique de l'organisation
   name      String                                                                 // Nom de l'organisation
@@ -218,7 +219,7 @@ model Organization {
   website   String?                                                                // Site web
   logo      String?                                                                // URL du logo
   createdAt DateTime  @default(now())                                             // Date de création
-  updatedAt DateTime  @updatedAt                                                  // Date de dernière modification
+  updatedAt DateTime  @updatedAt                                                   // Date de dernière modification
 
   // Relations
   teams     Team[]                                                                 // Équipes de l'organisation
@@ -455,7 +456,7 @@ enum InvoiceStatus {
 
 ////////////////////////
 /////   Fidélité   /////
-////////////////////////
+//////////////////////// 
 
 // Table fidélité - Programme de fidélité des clients
 model Fidelity {

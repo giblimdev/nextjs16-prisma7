@@ -10,7 +10,9 @@ import {
   MapPin,
   Gift,
   Sparkles,
+  Plus,
 } from "lucide-react";
+
 
 export default function HomePage() {
   return (
@@ -38,6 +40,7 @@ export default function HomePage() {
               Trouvez les meilleurs points de vente près de chez vous et profitez de notre programme de fidélité exclusif
             </p>
 
+
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/user">
@@ -58,6 +61,7 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
 
       {/* Features Grid */}
       <div className="max-w-7xl mx-auto px-6 py-16">
@@ -86,6 +90,7 @@ export default function HomePage() {
             </div>
           </Link>
 
+
           {/* Carte de fidélité */}
           <Link href="/loyalty">
             <div className="group bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 cursor-pointer">
@@ -109,8 +114,33 @@ export default function HomePage() {
               </div>
             </div>
           </Link>
+
+          {/* Créer un point de vente */}
+          <Link href="/user/addOrganization">
+            <div className="group bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 cursor-pointer">
+              <div className="mb-6">
+                <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Plus className="w-8 h-8 text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+              
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
+                Créer un point de vente
+              </h3>
+              
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Ajoutez votre commerce à notre plateforme et développez votre visibilité auprès de nos clients
+              </p>
+              
+              <div className="flex items-center text-green-600 dark:text-green-400 font-medium group-hover:translate-x-2 transition-transform">
+                Commencer
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
+
 
       {/* Stats Section */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-16">
@@ -131,6 +161,7 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
 
       {/* CTA Section */}
       <div className="max-w-7xl mx-auto px-6 py-24">
