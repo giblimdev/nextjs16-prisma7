@@ -1,0 +1,1035 @@
+// Schéma Prisma optimisé pour mini CRM et gestion de stock
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+////////////////////////////////
+/////   Authentification   /////
+////////////////////////////////
+
+model User {
+  id               String                @id @default(cuid())
+  email            String                @unique
+  password         String?
+  name             String?
+  image            String?
+  role             Role                  @default(USER)
+  emailVerified    DateTime?
+  isActive         Boolean               @default(true)
+  lastLoginAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  // Relations
+  sessions         Session[]
+  accounts         Account[]
+  twoFactor        TwoFactorAuth?
+  passwordReset    PasswordResetToken[]
+  verification     VerificationToken[]
+  profile          Profil?
+  teamMemberships  TeamMember[]
+  orgMemberships   OrganizationMember[]
+  assignedTasks    Task[]               @relation("AssignedTasks")
+  createdTasks     Task[]               @relation("CreatedTasks")
+//  notifications    Notification[]
+//  auditLogs        AuditLog[]
+//comments         Comment[]
+ 
+  @@index([email])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  expires      DateTime
+  createdAt    DateTime  @default(now())
+  ipAddress    String?
+  userAgent    String?
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+  @@map("sessions")
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model TwoFactorAuth {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  secret       String
+  backupCodes  String[]
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_auth")
+}
+
+model PasswordResetToken {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  expiresAt    DateTime
+  used         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+model VerificationToken {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  type         VerificationType
+  expiresAt    DateTime
+  used         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("verification_tokens")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum VerificationType {
+  EMAIL_VERIFICATION
+  TWO_FACTOR_VERIFICATION
+  PASSWORD_RESET
+}
+
+
+//////////////////////////////////
+/////   Profil & Contacts   /////
+/////////////////////////////////
+
+model Profil {
+  id            String         @id @default(cuid())
+  userId        String?        @unique
+  type          ProfileType    @default(CLIENT)
+  firstName     String
+  lastName      String
+  email         String?        @unique
+  phone         String?
+  mobile        String?
+  company       String?
+  position      String?
+  website       String?
+  avatar        String?
+  notes         String?
+  leadSource    LeadSource?
+  leadStatus    LeadStatus     @default(NEW)
+  assignedToId  String?
+  tags          String[]
+  customFields  Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relations CRM
+  fidelities     Fidelity[]
+  invoices       Invoice[]
+  orders         Order[]
+  addresses      Address[]
+  activities     Activity[]
+  deals          Deal[]
+  interactions   Interaction[]
+
+  @@index([type])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([leadStatus])
+  @@index([email])
+  @@map("profiles")
+}
+
+enum ProfileType {
+  CLIENT
+  PROSPECT
+  SUPPLIER
+  PARTNER
+  VENDOR
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  SOCIAL_MEDIA
+  EMAIL_CAMPAIGN
+  COLD_CALL
+  EVENT
+  PARTNER
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+  INACTIVE
+}
+
+
+////////////////////////////
+/////   Organisation   /////
+////////////////////////////
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  order     Int       @default(1)
+  address   String?
+  city      String?
+  postalCode String?
+  country   String?
+  phone     String?
+  email     String?
+  website   String?
+  logo      String?
+  industry  String?
+  size      String?
+  taxId     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  teams     Team[]
+  clients   Profil[]
+  products  Product[]
+  members   OrganizationMember[]
+  categories Category[]
+  tags      Tag[]
+  settings  OrganizationSetting?
+  warehouses Warehouse[]
+
+  @@index([name])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  joinedAt       DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationSetting {
+  id                 String   @id @default(cuid())
+  organizationId     String   @unique
+  xpExpirationDays   Int      @default(365)
+  currency           String   @default("EUR")
+  taxRate            Float    @default(0.2)
+  invoicePrefix      String   @default("INV")
+  orderPrefix        String   @default("ORD")
+  lowStockThreshold  Int      @default(10)
+  criticalStockThreshold Int  @default(5)
+  autoReorderEnabled Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+
+////////////////////////////
+/////   Équipe   /////
+////////////////////////////
+ 
+model Team {
+  id              String   @id @default(cuid())
+  name            String
+  order           Int      @default(1)
+  description     String?
+  parentTeamId    String?
+  organizationId  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  parentTeam     Team?           @relation("TeamHierarchy", fields: [parentTeamId], references: [id])
+  subTeams       Team[]          @relation("TeamHierarchy")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        TeamMember[]
+
+  @@index([organizationId])
+  @@index([parentTeamId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id             String   @id @default(cuid())
+  teamId         String
+  userId         String
+  role           TeamRole @default(MEMBER)
+  joinedAt       DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+enum TeamRole {
+  LEADER
+  MEMBER
+}
+
+
+//////////////////////////////////
+/////   Produit & Stock   /////
+//////////////////////////////////
+
+model Product {
+  id            String        @id @default(cuid())
+  name          String
+  order         Int           @default(1)
+  description   String?
+  shortDescription String?
+  price         Float
+  costPrice     Float?
+  stock         Int           @default(0)
+  minStock      Int           @default(0)
+  maxStock      Int?
+  reorderPoint  Int?
+  reorderQuantity Int?
+  sku           String?       @unique
+  barcode       String?       @unique
+  weight        Float?
+  dimensions    String?
+  isActive      Boolean       @default(true)
+  isFeatured    Boolean       @default(false)
+  trackInventory Boolean      @default(true)
+  allowBackorder Boolean      @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  invoiceItems   InvoiceItem[]
+  orderItems     OrderItem[]
+  tags           ProductTag[]
+  images         ProductImage[]
+  variants       ProductVariant[]
+  stockMovements StockMovement[]
+  stockLevels    StockLevel[]
+  suppliers      ProductSupplier[]
+
+  @@index([organizationId])
+  @@index([categoryId])
+  @@index([sku])
+  @@index([barcode])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([stock])
+  @@map("products")
+}
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  productId   String
+  name        String
+  sku         String?  @unique
+  barcode     String?  @unique
+  price       Float?
+  costPrice   Float?
+  stock       Int      @default(0)
+  attributes  Json?    // Ex: {size: "L", color: "Red"}
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  invoiceItems InvoiceItem[]
+  orderItems  OrderItem[]
+  stockMovements StockMovement[]
+  stockLevels StockLevel[]
+
+  @@index([productId])
+  @@index([sku])
+  @@index([barcode])
+  @@map("product_variants")
+}
+
+// Nouveau: Gestion des entrepôts
+model Warehouse {
+  id             String   @id @default(cuid())
+  name           String
+  code           String   @unique
+  organizationId String
+  address        String?
+  city           String?
+  postalCode     String?
+  country        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
+
+  @@index([organizationId])
+  @@index([code])
+  @@map("warehouses")
+}
+
+// Nouveau: Niveaux de stock par entrepôt
+model StockLevel {
+  id          String   @id @default(cuid())
+  warehouseId String
+  productId   String
+  variantId   String?
+  quantity    Int      @default(0)
+  reserved    Int      @default(0)  // Quantité réservée (commandes en cours)
+  available   Int      @default(0)  // Quantité disponible (quantity - reserved)
+  updatedAt   DateTime @updatedAt
+
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, productId, variantId])
+  @@index([warehouseId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("stock_levels")
+}
+
+// Nouveau: Mouvements de stock
+model StockMovement {
+  id          String   @id @default(cuid())
+  warehouseId String?
+  productId   String
+  variantId   String?
+  type        StockMovementType
+  quantity    Int
+  reference   String?  // Référence de la commande, facture, etc.
+  reason      String?
+  notes       String?
+  userId      String?
+  createdAt   DateTime @default(now())
+
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  product     Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([warehouseId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+enum StockMovementType {
+  PURCHASE       // Achat/réception
+  SALE           // Vente
+  RETURN         // Retour
+  TRANSFER       // Transfert entre entrepôts
+  ADJUSTMENT     // Ajustement d'inventaire
+  DAMAGE         // Produit endommagé
+  LOSS           // Perte
+  FOUND          // Produit retrouvé
+}
+
+// Nouveau: Fournisseurs de produits
+model ProductSupplier {
+  id            String   @id @default(cuid())
+  productId     String
+  supplierName  String
+  supplierEmail String?
+  supplierPhone String?
+  sku           String?
+  costPrice     Float?
+  leadTime      Int?     // Délai de livraison en jours
+  minOrderQty   Int?
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_suppliers")
+}
+
+model Category {
+  id             String     @id @default(cuid())
+  name           String
+  order          Int        @default(1)
+  description    String?
+  slug           String     @unique
+  parentId       String?
+  organizationId String
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  parent         Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children       Category[] @relation("CategoryHierarchy")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+
+  @@index([organizationId])
+  @@index([parentId])
+  @@index([slug])
+  @@map("categories")
+}
+
+model ProductTag {
+  id        String   @id @default(cuid())
+  productId String
+  tagId     String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, tagId])
+  @@index([productId])
+  @@index([tagId])
+  @@map("product_tags")
+}
+
+model Tag {
+  id             String       @id @default(cuid())
+  name           String
+  slug           String       @unique
+  color          String?      @default("#3B82F6")
+  organizationId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       ProductTag[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("tags")
+}
+
+model ProductImage {
+  id          String   @id @default(cuid())
+  productId   String
+  url         String
+  altText     String?
+  title       String?
+  sortOrder   Int      @default(0)
+  isPrimary   Boolean  @default(false)
+  width       Int?
+  height      Int?
+  fileSize    Int?
+  mimeType    String?
+  createdAt   DateTime @default(now())
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([isPrimary])
+  @@map("product_images")
+}
+
+
+////////////////////////
+/////   Facture   /////
+////////////////////////
+
+model Invoice {
+  id            String        @id @default(cuid())
+  clientId      String
+  invoiceNumber String        @unique
+  reference     String?
+  issuedAt      DateTime      @default(now())
+  dueDate       DateTime?
+  paidAt        DateTime?
+  subtotal      Float
+  taxAmount     Float         @default(0)
+  discount      Float         @default(0)
+  shipping      Float         @default(0)
+  total         Float
+  status        InvoiceStatus @default(PENDING)
+  notes         String?
+  terms         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  client        Profil        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items         InvoiceItem[]
+  orders        Order[]
+  payments      Payment[]
+  shippingAddressId String?
+  billingAddressId  String?
+  shippingAddress Address? @relation("InvoiceShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  billingAddress  Address? @relation("InvoiceBillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([issuedAt])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  productId   String
+  variantId   String?
+  order       Int      @default(1)
+  description String?
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  taxRate     Float    @default(0)
+  total       Float
+  createdAt   DateTime @default(now())
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_items")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+
+////////////////////////////
+/////   Points XP   /////
+////////////////////////////
+
+model XpTransaction {
+  id            String   @id @default(cuid())
+  fidelityId    String
+  type          XpTransactionType
+  points        Int
+  description   String?
+  sourceType    XpSourceType
+  sourceId      String?
+  expiresAt     DateTime
+  isExpired     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  fidelity      Fidelity @relation(fields: [fidelityId], references: [id], onDelete: Cascade)
+
+  @@index([fidelityId])
+  @@index([expiresAt])
+  @@index([isExpired])
+  @@map("xp_transactions")
+}
+
+enum XpTransactionType {
+  EARN
+  USE
+  EXPIRE
+}
+
+enum XpSourceType {
+  PURCHASE
+  REFERRAL
+  REVIEW
+  BIRTHDAY
+  LOYALTY
+  OTHER
+}
+
+
+////////////////////////
+/////   Fidélité   /////
+////////////////////////
+
+model Fidelity {
+  id          String   @id @default(cuid())
+  clientId    String   @unique
+  level       String?  @default("Bronze")
+  lastLevelUp DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Profil   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  transactions XpTransaction[]
+
+  @@index([clientId])
+  @@index([level])
+  @@map("fidelities")
+}
+
+
+////////////////////////
+/////   Commande   /////
+////////////////////////
+
+model Order {
+  id            String        @id @default(cuid())
+  clientId      String
+  orderNumber   String        @unique
+  reference     String?
+  subtotal      Float
+  taxAmount     Float         @default(0)
+  discount      Float         @default(0)
+  shipping      Float         @default(0)
+  total         Float
+  status        OrderStatus   @default(PENDING)
+  notes         String?
+  shippingAddressId String?
+  billingAddressId  String?
+  shippingMethod  String?
+  trackingNumber  String?
+  estimatedDelivery DateTime?
+  deliveredAt   DateTime?
+  invoiceId     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  client        Profil        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payments      Payment[]
+  shippingAddress Address? @relation("OrderShippingAddress", fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  billingAddress  Address? @relation("OrderBillingAddress", fields: [billingAddressId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([invoiceId])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  variantId   String?
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  total       Float
+  createdAt   DateTime @default(now())
+
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  PROCESSING
+  READY
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+
+////////////////////////
+/////   Adresse   /////
+////////////////////////
+
+model Address {
+  id           String   @id @default(cuid())
+  profileId    String
+  type         AddressType
+  firstName    String?
+  lastName     String?
+  company      String?
+  street       String
+  street2      String?
+  city         String
+  state        String?
+  postalCode   String
+  country      String
+  phone        String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  profile      Profil   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  shippingOrders Order[] @relation("OrderShippingAddress")
+  billingOrders  Order[] @relation("OrderBillingAddress")
+  shippingInvoices Invoice[] @relation("InvoiceShippingAddress")
+  billingInvoices  Invoice[] @relation("InvoiceBillingAddress")
+
+  @@index([profileId])
+  @@index([type])
+  @@map("addresses")
+}
+
+enum AddressType {
+  BILLING
+  SHIPPING
+  BOTH
+}
+
+
+////////////////////////
+/////   Paiement   /////
+////////////////////////
+
+model Payment {
+  id             String       @id @default(cuid())
+  invoiceId      String?
+  orderId        String?
+  amount         Float
+  currency       String       @default("EUR")
+  method         PaymentMethod
+  transactionId  String?      @unique
+  status         PaymentStatus @default(PENDING)
+  notes          String?
+  processedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  invoice        Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  order          Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([orderId])
+  @@index([transactionId])
+  @@index([status])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYPAL
+  STRIPE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+
+//////////////////////////////////
+/////   CRM - Activités   /////
+//////////////////////////////////
+
+// Nouveau: Suivi des activités CRM
+model Activity {
+  id          String       @id @default(cuid())
+  profileId   String
+  type        ActivityType
+  subject     String
+  description String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  priority    Priority     @default(MEDIUM)
+  status      ActivityStatus @default(TODO)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  profile     Profil       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@map("activities")
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+  DEMO
+  FOLLOW_UP
+}
+
+enum ActivityStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// Nouveau: Opportunités de vente
+model Deal {
+  id            String     @id @default(cuid())
+  profileId     String
+  title         String
+  description   String?
+  value         Float
+  stage         DealStage  @default(PROSPECTING)
+  probability   Int        @default(0)
+  expectedCloseDate DateTime?
+  closedAt      DateTime?
+  lostReason    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  profile       Profil     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([stage])
+  @@index([expectedCloseDate])
+  @@map("deals")
+}
+
+enum DealStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+// Nouveau: Historique des interactions
+model Interaction {
+  id          String          @id @default(cuid())
+  profileId   String
+  type        InteractionType
+  subject     String?
+  content     String?
+  duration    Int?            // Durée en minutes
+  createdAt   DateTime        @default(now())
+
+  profile     Profil          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("interactions")
+}
+
+enum InteractionType {
+  CALL
+  EMAIL
+  MEETING
+  CHAT
+  SMS
+  SOCIAL_MEDIA
+  OTHER
+}
+
+
+//////////////////////////////////
+/////   Tâches & Projets   /////
+//////////////////////////////////
+
+// Nouveau: Gestion des tâches
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  status        ActivityStatus   @default(TODO)
+  priority      Priority     @default(MEDIUM)
+  dueDate       DateTime?
+  completedAt   DateTime?
+  assignedToId  String?
+  createdById   String
+  tags          String[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  assignedTo    User?        @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy     User         @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: SetNull)
+}
+

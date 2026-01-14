@@ -1,0 +1,646 @@
+// Ceci est votre fichier de schéma Prisma,
+// plus d'informations dans la documentation : https://pris.ly/d/prisma-schema
+
+// Vous cherchez des moyens d'accélérer vos requêtes ou de scaler facilement avec vos fonctions serverless ou edge ?
+// Essayez Prisma Accelerate : https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+///////////////////
+/////   DEV   /////
+///////////////////
+
+
+model Feature {
+  id            String           @id @default(cuid())
+  title         String                                // Titre de la feature
+  slug          String?          @unique              // URL unique (ex: /dev/feat/user-login)
+  description   String?                               // Description de la feature
+  type          FeatureType      @default(FEATURE)    // Type (Epic / Feature / Task / Bug)
+  status        FeatureStatus    @default(BACKLOG)    // Statut actuel (Backlog, In Progress, Done)
+  priority      FeaturePriority  @default(MEDIUM)     // Priorité
+  order         Int              @default(0)          // Pour le tri dans un board Kanban
+
+  // Dates clés
+  dueDate       DateTime?                             // Date limite
+  startedAt     DateTime?                             // Date de démarrage
+  completedAt   DateTime?                             // Date de complétion
+
+  // Estimations
+  estimatedPoints Int?                                // Points estimés
+  estimatedHours  Float?                              // Temps estimé (en heures)
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relation hiérarchique (auto-référence)
+  parentId      String?
+  parent        Feature?        @relation("FeatureHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Feature[]       @relation("FeatureHierarchy")
+
+  // Association à l'organisation (magasin ou artisan)
+  organizationId String?
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Utilisateurs liés
+  assigneeId     String?                              // Utilisateur assigné (artisan, employé)
+  assignee       User?           @relation("FeatureAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  creatorId      String?                                // Créateur de la feature
+  creator        User?            @relation("FeatureCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([type])
+  @@index([parentId])
+  @@index([organizationId])
+  @@index([assigneeId])
+  @@map("features")
+}
+
+enum FeatureType {
+  EPIC      // Grande fonctionnalité englobant plusieurs features
+  FEATURE   // Fonctionnalité principale
+  TASK      // Sous-tâche
+  BUG       // Correction de bug
+}
+
+enum FeatureStatus {
+  BACKLOG    // En attente
+  TODO       // À faire
+  IN_PROGRESS // En cours
+  DONE       // Terminé
+  ARCHIVED   // Archivé
+}
+
+enum FeaturePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+///////////////////////////////////////////
+/////   Authentification Better Auth  /////
+///////////////////////////////////////////
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  sessions      Session[]
+  accounts      Account[]
+
+  featuresAssignee Feature[] @relation("FeatureAssignee")
+  featuresCreator Feature[] @relation("FeatureCreator")
+  profils Profil[]
+  teams Team[]
+  organizations Organization[]
+
+  @@map("user")
+  
+  }
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime
+  updatedAt DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+
+//////////////////////////////////
+/////   Profil utilisateur   /////
+//////////////////////////////////
+
+// Table profil - Stocke les informations détaillées des clients/fournisseurs/vendeurs
+model Profil {
+  id            String         @id @default(cuid())                               // Identifiant unique du profil
+  userId        String?        @unique                                            // Lien vers le compte utilisateur (optionnel)
+  type          String         @default("client")                                 // Type de profil (client, fournisseur, vendeur)
+  firstName     String                                                             // Prénom
+  lastName      String                                                             // Nom de famille
+  email         String?        @unique                                            // Email du profil (peut différer du compte)
+  phone         String?                                                            // Numéro de téléphone
+  createdAt     DateTime       @default(now())                                    // Date de création du profil
+  updatedAt     DateTime       @updatedAt                                         // Date de dernière modification
+
+  // Relations
+  organizationId String?                                                           // Référence à l'organisation
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull) // Organisation liée
+  fidelities     Fidelity[]                                                        // Programmes de fidélité associés
+  invoices       Invoice[]                                                         // Factures du client
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade) // Compte utilisateur associé
+  orders         Order[]                                                           // Commandes passées par le client
+  addresses      Address[]                                                         // Adresses du client
+
+  // Indexes
+  @@index([type])                                                                 // Index sur le type de profil
+  @@index([organizationId])                                                       // Index pour jointures organisation
+  @@index([userId])                                                               // Index pour jointures utilisateur
+  @@map("profiles")                                                               // Nom de table
+}
+
+
+////////////////////////////
+/////   Organisation   /////
+////////////////////////////
+
+// Table organisation - Stocke les informations des entreprises/magasins
+model Organization {
+  id        String    @id @default(cuid())                                        // Identifiant unique de l'organisation
+  name      String                                                                 // Nom de l'organisation
+  order         Int          @default(1)                                                     // ordre d'affichage
+  address   String?                                                                // Adresse physique
+  city      String?                                                                // Ville
+  postalCode String?                                                               // Code postal
+  country   String?                                                                // Pays
+  phone     String?                                                                // Téléphone principal
+  email     String?                                                                // Email de contact
+  website   String?                                                                // Site web
+  logo      String?                                                                // URL du logo
+  createdAt DateTime  @default(now())                                             // Date de création
+  updatedAt DateTime  @updatedAt                                                  // Date de dernière modification
+
+  // Relations
+  teams     Team[]                                                                 // Équipes de l'organisation
+  clients   Profil[]                                                               // Clients de l'organisation
+  products  Product[]                                                              // Produits vendus par l'organisation
+  users     User[]                                                                 // Utilisateurs appartenant à l'organisation
+  categories Category[]                                                            // Catégories de produits de l'organisation
+  tags      Tag[]                                                                  // Étiquettes de l'organisation
+
+  @@index([name])                                                                  // Index pour recherche par nom
+  @@map("organizations")                                                           // Nom de table
+ // features Feature[]
+  features Feature[]
+}
+
+// Table équipe - Structure hiérarchique des équipes au sein d'une organisation
+model Team {
+  id              String   @id @default(cuid())                                   // Identifiant unique de l'équipe
+  name            String                                                           // Nom de l'équipe
+  order         Int          @default(1)                                                     // ordre d'affichage
+  description     String?                                                          // Description de l'équipe
+  parentTeamId    String?                                                          // Équipe parente pour hiérarchie
+  organizationId  String                                                           // Organisation à laquelle l'équipe appartient
+  createdAt       DateTime @default(now())                                        // Date de création
+  updatedAt       DateTime @updatedAt                                             // Date de dernière modification
+
+  // Relations
+  parentTeam     Team?           @relation("TeamHierarchy", fields: [parentTeamId], references: [id]) // Équipe parente
+  subTeams       Team[]          @relation("TeamHierarchy")                       // Sous-équipes
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Organisation
+  members        User[]                                                          // Membres de l'équipe
+
+  // Indexes
+  @@index([organizationId])                                                       // Index pour jointures organisation
+  @@index([parentTeamId])                                                         // Index pour hiérarchie
+  @@map("teams")                                                                  // Nom de table
+}
+
+
+///////////////////////
+/////   Produit   /////
+///////////////////////
+
+// Table produit - Stocke les informations des produits/services
+model Product {
+  id            String        @id @default(cuid())                                // Identifiant unique du produit
+  name          String                                                             // Nom du produit
+  order         Int          @default(1)                                                     // ordre d'affichage
+  description   String?                                                            // Description détaillée
+  shortDescription String?                                                         // Description courte pour listes
+  price         Float                                                              // Prix unitaire
+  costPrice     Float?                                                             // Prix de revient (pour marge)
+  stock         Int           @default(0)                                         // Quantité en stock
+  sku           String?       @unique                                             // Référence unique (SKU)
+  barcode       String?       @unique                                             // Code-barres
+  weight        Float?                                                            // Poids en kg
+  dimensions    String?                                                            // Dimensions (LxWxH)
+  isActive      Boolean       @default(true)                                      // Produit actif/inactif
+  isFeatured    Boolean       @default(false)                                     // Produit en vedette
+  createdAt     DateTime      @default(now())                                     // Date de création
+  updatedAt     DateTime      @updatedAt                                          // Date de dernière modification
+
+  // Relations
+  organizationId String                                                           // Organisation propriétaire
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Organisation
+  invoiceItems   InvoiceItem[]                                                    // Lignes de facture contenant ce produit
+  tags           ProductTag[]                                                     // Étiquettes associées
+  images         ProductImage[]                                                   // Galerie d'images
+  categoryId     String?                                                          // Catégorie du produit
+  category       Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull) // Catégorie
+  orderItems     OrderItem[]                                                      // Lignes de commande contenant ce produit
+
+  // Indexes
+  @@index([organizationId])                                                       // Index pour jointures organisation
+  @@index([sku])                                                                  // Index pour recherche par SKU
+  @@index([isActive])                                                             // Index pour filtrage actif/inactif
+  @@index([isFeatured])                                                           // Index pour produits en vedette
+  @@map("products")                                                               // Nom de table
+}
+
+// Table catégorie - Catégories de produits pour organisation
+model Category {
+  id             String     @id @default(cuid())                                  // Identifiant unique de catégorie
+  name           String                                                           // Nom de la catégorie
+  order         Int          @default(1)                                                     // ordre d'affichage
+  description    String?                                                          // Description
+  slug           String     @unique                                               // URL slug pour SEO
+  parentId       String?                                                          // Catégorie parente
+  organizationId String                                                           // Organisation propriétaire
+  sortOrder      Int        @default(0)                                          // Ordre d'affichage
+  createdAt      DateTime   @default(now())                                      // Date de création
+  updatedAt      DateTime   @updatedAt                                           // Date de dernière modification
+
+  // Relations
+  parent         Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id]) // Catégorie parente
+  children       Category[] @relation("CategoryHierarchy")                        // Sous-catégories
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Organisation
+  products       Product[]                                                         // Produits dans cette catégorie
+
+  @@index([organizationId])                                                       // Index pour jointures organisation
+  @@index([parentId])                                                             // Index pour hiérarchie
+  @@index([slug])                                                                 // Index pour recherche par slug
+  @@map("categories")                                                             // Nom de table
+}
+
+// Table étiquette produit - Étiquettes/tags pour produits (many-to-many)
+model ProductTag {
+  id        String   @id @default(cuid())                                         // Identifiant unique
+  productId String                                                               // Produit associé
+  tagId     String                                                               // Étiquette associée
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade) // Produit
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade) // Étiquette
+
+  @@unique([productId, tagId])                                                    // Une seule fois par combinaison produit/tag
+  @@index([productId])                                                            // Index pour jointures produit
+  @@index([tagId])                                                                // Index pour jointures tag
+  @@map("product_tags")                                                           // Nom de table
+}
+
+// Table étiquette - Étiquettes réutilisables pour catégoriser les produits
+model Tag {
+  id             String       @id @default(cuid())                                // Identifiant unique
+  name           String       @unique                                             // Nom de l'étiquette (unique)
+  slug           String       @unique                                             // URL slug
+  color          String?      @default("#3B82F6")                                 // Couleur d'affichage
+  organizationId String?                                                          // Étiquette organisationnelle (null = globale)
+  createdAt      DateTime     @default(now())                                    // Date de création
+  updatedAt      DateTime     @updatedAt                                         // Date de dernière modification
+
+  // Relations
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Organisation
+  products       ProductTag[]                                                    // Produits associés
+
+  @@index([organizationId])                                                       // Index pour jointures organisation
+  @@map("tags")                                                                   // Nom de table
+}
+
+// Table image produit - Galerie d'images pour produits
+model ProductImage {
+  id          String   @id @default(cuid())                                       // Identifiant unique
+  productId   String                                                             // Produit associé
+  url         String                                                             // URL de l'image
+  altText     String?                                                            // Texte alternatif pour accessibilité
+  title       String?                                                            // Titre de l'image
+  sortOrder   Int      @default(0)                                              // Ordre d'affichage dans la galerie
+  isPrimary   Boolean  @default(false)                                          // Image principale du produit
+  width       Int?                                                               // Largeur en pixels
+  height      Int?                                                               // Hauteur en pixels
+  fileSize    Int?                                                               // Taille du fichier en octets
+  mimeType    String?                                                            // Type MIME (image/jpeg, etc.)
+  createdAt   DateTime @default(now())                                          // Date de création
+
+  // Relations
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade) // Produit
+
+  @@index([productId])                                                            // Index pour jointures produit
+  @@index([isPrimary])                                                            // Index pour image principale
+  @@map("product_images")                                                         // Nom de table
+}
+
+
+///////////////////////
+/////   Facture   /////
+///////////////////////
+
+// Table facture - Documents de facturation pour clients
+model Invoice {
+  id            String        @id @default(cuid())                                // Identifiant unique de facture
+  clientId      String                                                           // Client facturé
+  invoiceNumber String?       @unique                                            // Numéro de facture personnalisé
+  reference     String?                                                           // Référence client
+  issuedAt      DateTime      @default(now())                                    // Date d'émission
+  dueDate       DateTime?                                                        // Date d'échéance
+  paidAt        DateTime?                                                        // Date de paiement effectif
+  total         Float                                                            // Montant total HT
+  taxAmount     Float         @default(0)                                        // Montant des taxes
+  totalWithTax  Float                                                            // Montant total TTC
+  status        InvoiceStatus @default(PENDING)                                  // Statut de la facture
+  notes         String?                                                           // Notes internes
+  terms         String?                                                           // Conditions de paiement
+  createdAt     DateTime      @default(now())                                    // Date de création
+  updatedAt     DateTime      @updatedAt                                         // Date de dernière modification
+
+  // Relations
+  client        Profil        @relation(fields: [clientId], references: [id], onDelete: Cascade) // Client
+  items         InvoiceItem[]                                                    // Lignes de la facture
+  orders        Order[]                                                          // Commandes associées à cette facture
+  payments      Payment[]                                                        // Paiements pour cette facture
+
+  // Indexes
+  @@index([clientId])                                                            // Index pour jointures client
+  @@index([status])                                                              // Index pour filtrage par statut
+  @@index([issuedAt])                                                            // Index pour recherche par date
+  @@index([dueDate])                                                             // Index pour échéances
+  @@map("invoices")                                                              // Nom de table
+}
+
+// Table ligne de facture - Détail des produits/services facturés
+model InvoiceItem {
+  id          String   @id @default(cuid())                                       // Identifiant unique de ligne
+  invoiceId   String                                                             // Facture parente
+  productId   String                                                             // Produit facturé
+  order         Int          @default(1)                                                     // ordre d'affichage
+  description String?                                                            // Description personnalisée (surcharge)
+  quantity    Int      @default(1)                                              // Quantité
+  unitPrice   Float                                                              // Prix unitaire au moment de la facturation
+  discount    Float     @default(0)                                             // Remise en pourcentage ou montant
+  taxRate     Float     @default(0)                                             // Taux de taxe applicable
+  createdAt   DateTime @default(now())                                          // Date de création
+
+  // Relations
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade) // Facture
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict) // Produit
+
+  // Indexes
+  @@index([invoiceId])                                                            // Index pour jointures facture
+  @@index([productId])                                                            // Index pour jointures produit
+  @@map("invoice_items")                                                          // Nom de table
+}
+
+// Énumération statut facture
+enum InvoiceStatus {
+  DRAFT        // Brouillon - Non finalisée
+  PENDING      // En attente - Envoyée mais non payée
+  PARTIAL      // Partiellement payée
+  PAID         // Payée intégralement
+  OVERDUE      // En retard de paiement
+  CANCELLED    // Annulée
+  REFUNDED     // Remboursée
+}
+
+
+////////////////////////
+/////   Fidélité   /////
+////////////////////////
+
+// Table fidélité - Programme de fidélité des clients
+model Fidelity {
+  id          String   @id @default(cuid())                                       // Identifiant unique
+  clientId    String                                                             // Client concerné
+  points      Int      @default(0)                                              // Points accumulés
+  xpPoint     XpPoint[]                                               // Point d'experience qui permte de définir le niveau (platin, gold, sylver, member)
+  xpPointid String?
+  level       String?  @default("Bronze")                                       // Niveau de fidélité
+  lastEarned  DateTime?                                                          // Dernière acquisition de points
+  lastRedeemed DateTime?                                                         // Dernière utilisation de points
+  createdAt   DateTime @default(now())                                          // Date de création
+  updatedAt   DateTime @updatedAt                                               // Date de dernière modification
+
+  // Relations
+  client      Profil   @relation(fields: [clientId], references: [id], onDelete: Cascade) // Client
+
+  // Indexes
+  @@index([clientId])                                                            // Index pour jointures client
+  @@index([level])                                                               // Index pour filtrage par niveau
+  @@map("fidelities")                                                            // Nom de table
+}
+model XpPoint {
+id          String   @id @default(cuid())                                       // Identifiant unique
+createdAt   DateTime @default(now())                                          // Date de création
+
+
+
+fidelities Fidelity[]
+}
+
+////////////////////////
+/////   Commande   /////
+////////////////////////
+
+// Table commande - Commandes clients avant facturation
+// Une commande peut devenir une facture après validation
+model Order {
+  id            String        @id @default(cuid())                                // Identifiant unique de commande
+  clientId      String                                                           // Client
+  orderNumber   String?       @unique                                            // Numéro de commande
+  reference     String?                                                           // Référence client
+  total         Float                                                            // Montant total
+  status        OrderStatus   @default(PENDING)                                  // Statut de la commande
+  notes         String?                                                           // Notes internes
+  shippingAddress String?                                                        // Adresse de livraison
+  billingAddress  String?                                                        // Adresse de facturation
+  shippingMethod  String?                                                        // Méthode de livraison
+  trackingNumber  String?                                                        // Numéro de suivi
+  estimatedDelivery DateTime?                                                    // Date de livraison estimée
+  deliveredAt   DateTime?                                                        // Date de livraison effective
+  invoiceId     String?                                                          // Référence à la facture générée
+  createdAt     DateTime      @default(now())                                    // Date de création
+  updatedAt     DateTime      @updatedAt                                         // Date de dernière modification
+
+  // Relations
+  client        Profil        @relation(fields: [clientId], references: [id], onDelete: Cascade) // Client
+  items         OrderItem[]                                                      // Lignes de commande
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull) // Facture générée
+  payments      Payment[]                                                        // Paiements pour cette commande
+
+  // Indexes
+  @@index([clientId])                                                            // Index pour jointures client
+  @@index([status])                                                              // Index pour filtrage par statut
+  @@index([createdAt])                                                           // Index pour recherche par date
+  @@index([invoiceId])                                                           // Index pour jointures facture
+  @@map("orders")                                                                // Nom de table
+}
+
+// Table ligne de commande - Détail des produits commandés
+model OrderItem {
+  id          String   @id @default(cuid())                                       // Identifiant unique de ligne
+  orderId     String                                                             // Commande parente
+  productId   String                                                             // Produit commandé
+  quantity    Int      @default(1)                                              // Quantité
+  unitPrice   Float                                                              // Prix unitaire au moment de la commande
+  discount    Float     @default(0)                                             // Remise appliquée
+  createdAt   DateTime @default(now())                                          // Date de création
+
+  // Relations
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade) // Commande
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict) // Produit
+
+  // Indexes
+  @@index([orderId])                                                              // Index pour jointures commande
+  @@index([productId])                                                            // Index pour jointures produit
+  @@map("order_items")                                                           // Nom de table
+}
+
+// Énumération statut commande
+enum OrderStatus {
+  DRAFT        // Brouillon - Commande en cours de création
+  PENDING      // En attente de confirmation
+  CONFIRMED    // Confirmée - Prête à être traitée
+  PROCESSING   // En traitement - En préparation
+  READY        // Prête à être expédiée
+  SHIPPED      // Expédiée - En cours de livraison
+  DELIVERED    // Livrée - Commande terminée
+  CANCELLED    // Annulée
+  REFUNDED     // Remboursée
+}
+
+
+///////////////////////
+/////   Adresse   /////
+///////////////////////
+
+// Table adresse - Adresses des clients pour livraison/facturation
+model Address {
+  id           String   @id @default(cuid())                                      // Identifiant unique
+  profileId    String                                                            // Client propriétaire
+  type         AddressType                                                        // Type d'adresse
+  firstName    String?                                                           // Prénom pour l'adresse
+  lastName     String?                                                           // Nom pour l'adresse
+  company      String?                                                           // Société
+  street       String                                                            // Rue et numéro
+  street2      String?                                                           // Complément d'adresse
+  city         String                                                            // Ville
+  state        String?                                                           // Région/État
+  postalCode   String                                                            // Code postal
+  country      String                                                            // Pays
+  phone        String?                                                           // Téléphone
+  isDefault    Boolean  @default(false)                                         // Adresse par défaut
+  createdAt    DateTime @default(now())                                         // Date de création
+  updatedAt    DateTime @updatedAt                                              // Date de dernière modification
+
+  // Relations
+  profile      Profil   @relation(fields: [profileId], references: [id], onDelete: Cascade) // Client
+
+  // Indexes
+  @@index([profileId])                                                           // Index pour jointures client
+  @@index([type])                                                                // Index pour type d'adresse
+  @@map("addresses")                                                             // Nom de table
+}
+
+// Énumération type d'adresse
+enum AddressType {
+  BILLING     // Adresse de facturation
+  SHIPPING    // Adresse de livraison
+  BOTH        // Adresse pour facturation et livraison
+}
+
+
+//////////////////////////
+/////   Paiement   /////
+//////////////////////////
+
+// Table paiement - Transactions financières
+model Payment {
+  id             String       @id @default(cuid())                                // Identifiant unique
+  invoiceId      String?                                                         // Facture associée (optionnel)
+  orderId        String?                                                         // Commande associée (optionnel)
+  amount         Float                                                           // Montant du paiement
+  currency       String       @default("EUR")                                    // Devise
+  method         PaymentMethod                                                   // Méthode de paiement
+  transactionId  String?       @unique                                           // ID transaction fournisseur
+  status         PaymentStatus @default(PENDING)                                 // Statut du paiement
+  notes          String?                                                         // Notes
+  processedAt    DateTime?                                                       // Date de traitement
+  createdAt      DateTime     @default(now())                                   // Date de création
+  updatedAt      DateTime     @updatedAt                                        // Date de dernière modification
+
+  // Relations
+  invoice        Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull) // Facture
+  order          Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull) // Commande
+
+  // Indexes
+  @@index([invoiceId])                                                           // Index pour jointures facture
+  @@index([orderId])                                                             // Index pour jointures commande
+  @@index([transactionId])                                                       // Index pour recherche transaction
+  @@index([status])                                                              // Index pour filtrage statut
+  @@map("payments")                                                              // Nom de table
+}
+
+// Énumération méthode de paiement
+enum PaymentMethod {
+  CASH          // Espèces
+  CHECK         // Chèque
+  BANK_TRANSFER // Virement bancaire
+  CREDIT_CARD   // Carte de crédit
+  DEBIT_CARD    // Carte de débit
+  PAYPAL        // PayPal
+  STRIPE        // Stripe
+  OTHER         // Autre
+}
+
+// Énumération statut paiement
+enum PaymentStatus {
+  PENDING       // En attente
+  PROCESSING    // En traitement
+  COMPLETED     // Complété
+  FAILED        // Échoué
+  REFUNDED      // Remboursé
+  CANCELLED     // Annulé
+}
+
+

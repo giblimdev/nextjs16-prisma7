@@ -1,0 +1,47 @@
+/*Voici les features déduites, classées par catégorie :
+
+1. Authentification & Sécurité
+11. Authentification complète : Connexion par email/mot de passe, ainsi que via fournisseurs tiers (OAuth - Google, GitHub, etc. via la table Account).
+
+12. Récupération de compte : Système de tokens pour réinitialisation du mot de passe et vérification d'email.
+13. Rôles globaux : Hiérarchie des droits utilisateurs (USER, ADMIN, SUPERADMIN).
+14. Profil : 
+15. Sécurité renforcée : Support de la double authentification (2FA) avec codes de sauvegarde.
+16. Gestion des sessions : Suivi des sessions utilisateur (IP, User Agent) et capacité de révoquer les sessions.
+
+2. Architecture Organisationnelle & Équipes (Multi-tenant)
+21. Gestion Multi-organisations : La structure permet de gérer plusieurs entreprises/entités distinctes au sein d'une même base de données.
+22. Paramétrage par organisation : Chaque organisation a ses propres réglages (devise, taux de TVA, préfixes de factures, durée de validité des points).
+23. Gestion des membres : Invitation et gestion des utilisateurs au sein d'une organisation avec des rôles (Owner, Admin, Manager, Member).
+24. Structure d'Équipes Hiérarchique : Création d'équipes et sous-équipes (arborescence) pour organiser les collaborateurs par service ou fonction.
+
+3. Catalogue Produit & Inventaire
+31. Gestion avancée des produits : Fiches produits avec descriptions, prix, prix de revient, stock, SKU, Code-barres et poids/dimensions.
+32. Variantes de produits : Gestion des déclinaisons (ex: Taille L, Couleur Rouge) avec prix et stocks spécifiques.
+33. Organisation du catalogue : Catégories hiérarchiques (parents/enfants) et système de tags (étiquettes) pour filtrer les produits.
+34. Média : Galerie d'images par produit avec gestion de l'image principale et des métadonnées (taille, type MIME).
+35. like :
+
+4. CRM & Gestion Client
+41. Profils clients détaillés : Séparation entre le User (compte de connexion) et le Profil (fiche client), permettant de gérer des clients qui n'ont pas forcément de compte connecté.
+42. Carnet d'adresses : Gestion multiple d'adresses (Livraison, Facturation, les deux) par défaut ou spécifiques.
+43. Historique global : Chaque profil est lié à ses commandes, factures et programme de fidélité.
+
+5. Ventes, Commandes & Facturation
+51. Workflow de commande : Suivi complet du cycle de vie de la commande (Brouillon -> En attente -> Confirmé -> Expédié -> Livré -> Remboursé).
+52. Logistique : Gestion des méthodes de livraison, numéros de suivi et estimation de livraison.
+53. Facturation : Génération de factures liées aux commandes, avec calcul automatique de la TVA et totaux.
+54. Paiements : Suivi des transactions financières avec support de multiples méthodes (Carte, Virement, Espèces, Stripe, PayPal, etc.) et statuts de paiement.
+
+6. Fidélisation & Gamification
+61. Programme de fidélité : Système de points XP (expérience) gagnés ou dépensés par les clients.
+62. Niveaux de client : Les clients ont un niveau (ex: Bronze, Silver) qui peut évoluer.
+63. Historique des points : Traçabilité précise de l'origine des points (Achat, Parrainage, Avis, Anniversaire) et de leur expiration.
+
+7. blog
+71. 
+
+8. Système & Surveillance
+81. Journal d'audit (Audit Log) : Traçabilité de toutes les actions sensibles effectuées sur la plateforme (qui a fait quoi, quand et depuis quelle IP).
+82. Centre de notifications : Système interne pour envoyer des alertes aux utilisateurs (Info, Avertissement, Success, Erreur) liées aux commandes, paiements ou au système.
+ */
