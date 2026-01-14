@@ -1,5 +1,8 @@
 // @/app/user/page.tsx
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/auth/auth";
+import { headers } from "next/headers";
 import {
   Store,
   CreditCard,
@@ -8,20 +11,100 @@ import {
   Gift,
   Star,
   ArrowRight,
+  LogIn,
+  UserPlus,
+  User,
+  Plus,
 } from "lucide-react";
 
-export default function UserPage() {
+export default async function UserPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  // Si pas connecté, afficher les boutons de connexion
+  if (!session?.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="max-w-md w-full mx-auto p-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+            {/* Icon */}
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-indigo-500/10 rounded-full">
+                <User className="w-12 h-12 text-indigo-600 dark:text-indigo-400" />
+              </div>
+            </div>
+
+            {/* Titre */}
+            <h1 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-2">
+              Mon Espace
+            </h1>
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
+              Vous devez être connecté pour accéder à cette page
+            </p>
+
+            {/* Boutons */}
+            <div className="space-y-3">
+              <Link href="/auth/signin" className="block">
+                <Button className="w-full" size="lg">
+                  <LogIn className="w-5 h-5 mr-2" />
+                  Se connecter
+                </Button>
+              </Link>
+
+              <Link href="/auth/register" className="block">
+                <Button variant="outline" className="w-full" size="lg">
+                  <UserPlus className="w-5 h-5 mr-2" />
+                  Créer un compte
+                </Button>
+              </Link>
+            </div>
+
+            {/* Lien retour */}
+            <div className="mt-6 text-center">
+              <Link
+                href="/"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                ← Retour à l&apos;accueil
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Récupérer les rôles de l'utilisateur
+  const userRoles = (session.user.roles as string[]) || [];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            👋 Mon Espace
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Bienvenue dans votre espace personnel
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                👋 Bienvenue, {session.user.name}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Votre espace personnel
+              </p>
+            </div>
+            {userRoles.length > 0 && (
+              <div className="flex items-center gap-2">
+                {userRoles.map((role) => (
+                  <span
+                    key={role}
+                    className="px-3 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded-full"
+                  >
+                    {role}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -60,35 +143,45 @@ export default function UserPage() {
           </Link>
 
           {/* Carte de fidélité */}
-          <Link href="/loyalty">
-            <div className="group bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 cursor-pointer h-full">
-              <div className="mb-6">
-                <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <CreditCard className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                </div>
-              </div>
-
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                Carte de fidélité
-              </h3>
-
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Consultez vos points, réductions et avantages exclusifs
-              </p>
-
-              <div className="flex items-center text-purple-600 dark:text-purple-400 font-medium group-hover:translate-x-2 transition-transform">
-                Voir ma carte
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Gift className="w-4 h-4" />
-                  <span>250 points disponibles</span>
-                </div>
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 h-full flex flex-col">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <CreditCard className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-          </Link>
+
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+              Carte de fidélité
+            </h3>
+
+            <p className="text-gray-600 dark:text-gray-400 mb-6 flex-1">
+              Consultez vos points, réductions et avantages exclusifs
+            </p>
+
+            {/* Boutons */}
+            <div className="space-y-3">
+              <Link href="/user/addLoyalty" className="block">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer ma carte
+                </Button>
+              </Link>
+              
+              <Link href="/client/loyalty" className="block">
+                <Button variant="outline" className="w-full text-purple-600 border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20">
+                  Voir ma carte
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Gift className="w-4 h-4" />
+                <span>??? points disponibles</span>
+              </div>
+            </div>
+          </div>
 
           {/* Mes favoris */}
           <Link href="/favorites">

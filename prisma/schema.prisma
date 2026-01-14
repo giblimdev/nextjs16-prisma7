@@ -107,10 +107,11 @@ model User {
   profils Profil[]
   teams Team[]
   organizations Organization[]
-
+fidelity      Fidelity?  // ✅ Relation 1:1 optionnelle avec Fidelity
   @@map("user")
   
-  }
+
+}
 
 enum UserRole {
   ADMIN      // Accès complet système
@@ -186,7 +187,6 @@ model Profil {
   // Relations
   organizationId String?                                                           // Référence à l'organisation
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull) // Organisation liée
-  fidelities     Fidelity[]                                                        // Programmes de fidélité associés
   invoices       Invoice[]                                                         // Factures du client
   user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade) // Compte utilisateur associé
   orders         Order[]                                                           // Commandes passées par le client
@@ -459,34 +459,39 @@ enum InvoiceStatus {
 
 // Table fidélité - Programme de fidélité des clients
 model Fidelity {
-  id          String   @id @default(cuid())                                       // Identifiant unique
-  clientId    String                                                             // Client concerné
-  points      Int      @default(0)                                              // Points accumulés
-  xpPoint     XpPoint[]                                               // Point d'experience qui permte de définir le niveau (platin, gold, sylver, member)
-  xpPointid String?
-  level       String?  @default("Bronze")                                       // Niveau de fidélité
-  lastEarned  DateTime?                                                          // Dernière acquisition de points
-  lastRedeemed DateTime?                                                         // Dernière utilisation de points
-  createdAt   DateTime @default(now())                                          // Date de création
-  updatedAt   DateTime @updatedAt                                               // Date de dernière modification
+  id          String    @id @default(cuid())                                    // Identifiant unique
+  userId      String    @unique                                                 // ✅ User concerné (UNIQUE pour relation 1:1)
+  points      Int       @default(0)                                            // Points accumulés
+  level       String?   @default("Bronze")                                     // Niveau de fidélité (Bronze, Silver, Gold, Platinum)
+  lastEarned  DateTime?                                                         // Dernière acquisition de points
+  lastRedeemed DateTime?                                                        // Dernière utilisation de points
+  createdAt   DateTime  @default(now())                                        // Date de création
+  updatedAt   DateTime  @updatedAt                                             // Date de dernière modification
 
   // Relations
-  client      Profil   @relation(fields: [clientId], references: [id], onDelete: Cascade) // Client
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade) // ✅ Relation 1:1 avec User
+  xpPoints    XpPoint[]                                                         // Historique des points d'expérience
 
   // Indexes
-  @@index([clientId])                                                            // Index pour jointures client
-  @@index([level])                                                               // Index pour filtrage par niveau
-  @@map("fidelities")                                                            // Nom de table
+  @@index([userId])                                                             // Index pour jointures user
+  @@index([level])                                                              // Index pour filtrage par niveau
+  @@map("fidelities")                                                           // Nom de table
 }
+
+// Table point d'expérience - Historique des gains de points
 model XpPoint {
-id          String   @id @default(cuid())                                       // Identifiant unique
-createdAt   DateTime @default(now())                                          // Date de création
+  id          String    @id @default(cuid())                                    // Identifiant unique
+  fidelityId  String                                                            // Carte de fidélité concernée
+  amount      Int                                                               // Montant de points gagnés/dépensés
+  reason      String?                                                           // Raison (achat, bonus, utilisation)
+  createdAt   DateTime  @default(now())                                        // Date de création
 
+  // Relations
+  fidelity    Fidelity  @relation(fields: [fidelityId], references: [id], onDelete: Cascade) // Carte de fidélité
 
-
-fidelities Fidelity[]
+  @@index([fidelityId])                                                         // Index pour jointures
+  @@map("xp_points")                                                            // Nom de table
 }
-
 ////////////////////////
 /////   Commande   /////
 ////////////////////////

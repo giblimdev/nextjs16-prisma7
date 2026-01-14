@@ -67,7 +67,7 @@ export default async function ClientPage() {
   // Vérifier les rôles
   const userRoles = (session.user.roles as string[]) || [];
   if (!userRoles.some(role => ["CLIENT", "VENDOR", "ADMIN"].includes(role))) {
-    redirect("/unauthorized");
+    redirect("/auth/unauthorized");
   }
 
   // Si connecté, afficher la page client
