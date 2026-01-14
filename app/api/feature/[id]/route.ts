@@ -176,7 +176,8 @@ export async function PUT(
 }
 
 /**
- * PATCH /api/feature/[id] - Mise à jour partielle (déplacement hiérarchique)
+ * PATCH /api/feature/[id] - Mise à jour partielle (order, parentId, status, etc.)
+ * Permet de mettre à jour n'importe quel champ individuellement
  */
 export async function PATCH(
   request: NextRequest,
@@ -211,9 +212,43 @@ export async function PATCH(
       }
     }
 
+    // Construire updateData avec TOUS les champs possibles du body
+    const updateData: Record<string, unknown> = {};
+    
+    // Champs de base
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.slug !== undefined) updateData.slug = body.slug || null;
+    if (body.description !== undefined) updateData.description = body.description || null;
+    if (body.type !== undefined) updateData.type = body.type;
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.priority !== undefined) updateData.priority = body.priority;
+    
+    // Order - IMPORTANT pour le réordonnancement
+    if (body.order !== undefined) updateData.order = body.order;
+    
+    // Dates
+    if (body.dueDate !== undefined) {
+      updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    }
+    if (body.startedAt !== undefined) {
+      updateData.startedAt = body.startedAt ? new Date(body.startedAt) : null;
+    }
+    if (body.completedAt !== undefined) {
+      updateData.completedAt = body.completedAt ? new Date(body.completedAt) : null;
+    }
+    
+    // Estimations
+    if (body.estimatedPoints !== undefined) updateData.estimatedPoints = body.estimatedPoints || null;
+    if (body.estimatedHours !== undefined) updateData.estimatedHours = body.estimatedHours || null;
+    
+    // Relations
+    if (body.parentId !== undefined) updateData.parentId = body.parentId || null;
+    if (body.organizationId !== undefined) updateData.organizationId = body.organizationId || null;
+    if (body.assigneeId !== undefined) updateData.assigneeId = body.assigneeId || null;
+
     const feature = await prisma.feature.update({
       where: { id },
-      data: { parentId: body.parentId || null },
+      data: updateData,
       include: {
         assignee: {
           select: {
@@ -248,7 +283,7 @@ export async function PATCH(
   } catch (error) {
     console.error("Erreur PATCH /api/feature/[id]:", error);
     return NextResponse.json(
-      { error: "Erreur lors du déplacement de la feature" },
+      { error: "Erreur lors de la mise à jour partielle de la feature" },
       { status: 500 }
     );
   }

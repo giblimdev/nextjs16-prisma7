@@ -91,12 +91,13 @@ enum FeaturePriority {
 ///////////////////////////////////////////
 model User {
   id            String    @id
-  name          String
+  name          String    // pseudo
   email         String    @unique
   emailVerified Boolean
   image         String?
   createdAt     DateTime
   updatedAt     DateTime
+  roles         UserRole[] @default([USER])  // ✅ Tableau de rôles
 
   sessions      Session[]
   accounts      Account[]
@@ -110,6 +111,14 @@ model User {
   @@map("user")
   
   }
+
+enum UserRole {
+  ADMIN      // Accès complet système
+  DEV        // Développeur - accès /dev
+  VENDOR     // Vendeur - gestion boutique
+  CLIENT     // Utilisateur final
+  USER       // Utimisateur
+}
 
 model Session {
   id        String   @id
@@ -166,7 +175,7 @@ model Verification {
 model Profil {
   id            String         @id @default(cuid())                               // Identifiant unique du profil
   userId        String?        @unique                                            // Lien vers le compte utilisateur (optionnel)
-  type          String         @default("client")                                 // Type de profil (client, fournisseur, vendeur)
+  type          String         @default("client") // Type de profil (client, fournisseur, vendeur)
   firstName     String                                                             // Prénom
   lastName      String                                                             // Nom de famille
   email         String?        @unique                                            // Email du profil (peut différer du compte)

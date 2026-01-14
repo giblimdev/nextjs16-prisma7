@@ -40,22 +40,42 @@ const menuItems: MenuItem[] = [
     description: "Page d'accueil du site",
   },
   {
-    label: "À propos",
-    href: "/about",
-    description: "En savoir plus sur nous",
-    
+    label: "User",
+    href: "/user",
+    description: "Page d'accueil du site",
   },
+    {
+    label: "Client",
+    href: "/client",
+    description: "Page d'accueil du site",
+  },
+    {
+    label: "Vendor",
+    href: "/vendor",
+    description: "Page d'accueil du site",
+  },
+
     {
     label: "Admin",
     href: "/admin",
     description: "Section développement",
-    children: []
+    children: [      {
+        label: "Admin",
+        href: "/admin",
+        description: "page Admin",
+      },
+]
     },
   {
     label: "Dev",
     href: "/dev",
     description: "Section développement",
     children: [
+      {
+        label: "Dev",
+        href: "/dev",
+        description: "page Dev",
+      },
       {
         label: "Features",
         href: "/dev/features",
@@ -81,6 +101,12 @@ const menuItems: MenuItem[] = [
         href: "/dev/utils",
         description: "Fonctions et utilitaires partagés",
       },
+       {
+    label: "À propos",
+    href: "/about",
+    description: "En savoir plus sur nous",
+    
+  },
     ],
   },
 ];

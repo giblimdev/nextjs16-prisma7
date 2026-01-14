@@ -18,7 +18,8 @@ import {
   Calendar,
   Clock,
   User,
-  GripVertical
+  GripVertical,
+  RefreshCw
 } from "lucide-react";
 import FeatureForm from "./FeatureForm";
 import { 
@@ -224,7 +225,6 @@ const FeatureCard = ({
   );
 
   // Déterminer les types d'enfants possibles selon le type parent
-  // Hiérarchie: EPIC → FEATURE → TASK → BUG (Bug peut être ajouté partout)
   const getChildTypes = (parentType: FeatureType): Array<{ type: FeatureType; label: string }> => {
     switch (parentType) {
       case "EPIC":
@@ -266,7 +266,7 @@ const FeatureCard = ({
             {/* Partie gauche */}
             <div className="flex items-start gap-3 flex-1 min-w-0">
               {/* Bouton expand/collapse */}
-              {hasChildren && (
+              {hasChildren ? (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="mt-1 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
@@ -278,6 +278,8 @@ const FeatureCard = ({
                     }`}
                   />
                 </button>
+              ) : (
+                <div className="w-6" />
               )}
               
               <div className="flex-1 min-w-0">
@@ -373,7 +375,7 @@ const FeatureCard = ({
                             variant="ghost"
                             onClick={() => onAddChild(feature.id, type)}
                             className="h-7 px-2 text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900"
-                            title={`Ajouter un ${label}`}
+                            title={`Ajouter ${label}`}
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             {label}
@@ -470,6 +472,62 @@ export default function FeaturesPage() {
   const [availableOrganizations, setAvailableOrganizations] = useState<FeatureOrganization[]>([]);
   const [newFeatureType, setNewFeatureType] = useState<FeatureType>("EPIC");
   const [newFeatureParentId, setNewFeatureParentId] = useState<string | null>(null);
+  const [isNormalizing, setIsNormalizing] = useState(false);
+
+  /**
+   * Normalise les orders pour qu'ils soient séquentiels
+   */
+  const normalizeOrdersForFeatures = async () => {
+    setIsNormalizing(true);
+    
+    const grouped = new Map<string, FeatureWithRelations[]>();
+    
+    features.forEach(f => {
+      const key = f.parentId || "root";
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(f);
+    });
+
+    const updates: Promise<Response>[] = [];
+    
+    grouped.forEach((siblings) => {
+      siblings.sort((a, b) => a.order - b.order);
+      
+      siblings.forEach((sibling, index) => {
+        if (sibling.order !== index) {
+          updates.push(
+            fetch(`/api/feature/${sibling.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ order: index }),
+            })
+          );
+        }
+      });
+    });
+
+    if (updates.length > 0) {
+      try {
+        await Promise.all(updates);
+        toast.success(`${updates.length} orders normalisés`);
+        
+        const updated = await fetch("/api/feature");
+        if (updated.ok) {
+          const data: FeatureWithRelations[] = await updated.json();
+          setFeatures(data);
+        }
+      } catch (error) {
+        console.error("Erreur normalisation:", error);
+        toast.error("Erreur lors de la normalisation");
+      }
+    } else {
+      toast.info("Les orders sont déjà normalisés");
+    }
+    
+    setIsNormalizing(false);
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -574,10 +632,23 @@ export default function FeaturesPage() {
       ? `/api/feature/${selectedFeature.id}`
       : "/api/feature";
 
-    // Si création, ajouter parentId et type
-    const dataToSubmit = selectedFeature
-      ? formData
-      : { ...formData, parentId: newFeatureParentId, type: newFeatureType };
+    // Si création, calculer l'order automatiquement
+    let dataToSubmit = formData;
+    
+    if (!selectedFeature) {
+      // Trouver les siblings pour déterminer le prochain order
+      const siblings = features.filter(f => f.parentId === newFeatureParentId);
+      const maxOrder = siblings.length > 0 
+        ? Math.max(...siblings.map(s => s.order)) 
+        : -1;
+      
+      dataToSubmit = { 
+        ...formData, 
+        parentId: newFeatureParentId, 
+        type: newFeatureType,
+        order: maxOrder + 1
+      };
+    }
 
     try {
       const res = await fetch(url, {
@@ -654,79 +725,104 @@ export default function FeaturesPage() {
     }
   };
 
-const handleReorder = async (id: string, direction: "up" | "down") => {
-  const feature = features.find(f => f.id === id);
-  if (!feature) return;
+  const handleReorder = async (id: string, direction: "up" | "down") => {
+    const feature = features.find(f => f.id === id);
+    if (!feature) {
+      console.error("Feature non trouvée:", id);
+      return;
+    }
 
-  // Trouver les siblings (même parent)
-  const siblings = features
-    .filter(f => f.parentId === feature.parentId)
-    .sort((a, b) => a.order - b.order);
+    // Trouver les siblings (même parent) et les trier par order
+    const siblings = features
+      .filter(f => f.parentId === feature.parentId)
+      .sort((a, b) => a.order - b.order);
 
-  const currentIndex = siblings.findIndex(s => s.id === id);
-  if (currentIndex === -1) return;
+    console.log("Siblings:", siblings.map(s => ({ id: s.id, title: s.title, order: s.order })));
 
-  const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-  if (newIndex < 0 || newIndex >= siblings.length) return;
+    const currentIndex = siblings.findIndex(s => s.id === id);
+    if (currentIndex === -1) {
+      console.error("Index non trouvé");
+      return;
+    }
 
-  const targetFeature = siblings[newIndex];
+    const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= siblings.length) {
+      console.log("Impossible de déplacer:", { currentIndex, newIndex, siblingsLength: siblings.length });
+      return;
+    }
 
-  // Utiliser l'index comme nouvel ordre pour éviter les conflits
-  const newOrder = newIndex;
-  const targetNewOrder = currentIndex;
+    const targetFeature = siblings[newIndex];
 
-  try {
-    // Mise à jour optimiste de l'UI
-    const updatedFeatures = features.map(f => {
-      if (f.id === id) {
-        return { ...f, order: newOrder };
-      }
-      if (f.id === targetFeature.id) {
-        return { ...f, order: targetNewOrder };
-      }
-      return f;
+    console.log("Échange:", {
+      current: { id: feature.id, title: feature.title, order: feature.order },
+      target: { id: targetFeature.id, title: targetFeature.title, order: targetFeature.order }
     });
-    setFeatures(updatedFeatures);
 
-    // Échanger les orders sans toucher au parentId
-    const results = await Promise.all([
-      fetch(`/api/feature/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order: newOrder }),
-      }),
-      fetch(`/api/feature/${targetFeature.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order: targetNewOrder }),
-      }),
-    ]);
+    try {
+      // Échanger les valeurs d'order
+      const currentOrder = feature.order;
+      const targetOrder = targetFeature.order;
 
-    // Vérifier que les deux requêtes ont réussi
-    if (!results[0].ok || !results[1].ok) {
-      throw new Error("Erreur lors de la mise à jour");
+      // Mise à jour optimiste de l'UI
+      const updatedFeatures = features.map(f => {
+        if (f.id === id) {
+          return { ...f, order: targetOrder };
+        }
+        if (f.id === targetFeature.id) {
+          return { ...f, order: currentOrder };
+        }
+        return f;
+      });
+      setFeatures(updatedFeatures);
+
+      // Échanger les orders dans la DB
+      const results = await Promise.all([
+        fetch(`/api/feature/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: targetOrder }),
+        }),
+        fetch(`/api/feature/${targetFeature.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: currentOrder }),
+        }),
+      ]);
+
+      console.log("Résultats API:", {
+        result1: { ok: results[0].ok, status: results[0].status },
+        result2: { ok: results[1].ok, status: results[1].status }
+      });
+
+      // Vérifier que les deux requêtes ont réussi
+      if (!results[0].ok || !results[1].ok) {
+        const error1 = await results[0].json().catch(() => ({}));
+        const error2 = await results[1].json().catch(() => ({}));
+        console.error("Erreurs API:", { error1, error2 });
+        throw new Error("Erreur lors de la mise à jour");
+      }
+
+      toast.success("Ordre mis à jour");
+
+      // Rafraîchir pour synchroniser
+      const updated = await fetch("/api/feature");
+      if (updated.ok) {
+        const data: FeatureWithRelations[] = await updated.json();
+        setFeatures(data);
+        console.log("Features rafraîchies:", data.length);
+      }
+    } catch (error) {
+      console.error("Erreur handleReorder:", error);
+      toast.error("Erreur lors du réordonnancement");
+      
+      // Recharger en cas d'erreur
+      const updated = await fetch("/api/feature");
+      if (updated.ok) {
+        const data: FeatureWithRelations[] = await updated.json();
+        setFeatures(data);
+      }
     }
-
-    toast.success("Ordre mis à jour");
-
-    // Rafraîchir pour synchroniser
-    const updated = await fetch("/api/feature");
-    if (updated.ok) {
-      const data: FeatureWithRelations[] = await updated.json();
-      setFeatures(data);
-    }
-  } catch (error) {
-    console.error(error);
-    toast.error("Erreur lors du réordonnancement");
-    
-    // Recharger en cas d'erreur
-    const updated = await fetch("/api/feature");
-    if (updated.ok) {
-      const data: FeatureWithRelations[] = await updated.json();
-      setFeatures(data);
-    }
-  }
-};
+  };
 
   const possibleParents = features.filter(f => 
     !selectedFeature || (f.id !== selectedFeature.id && !isDescendant(f.id, selectedFeature.id, features))
@@ -749,22 +845,36 @@ const handleReorder = async (id: string, direction: "up" | "down") => {
             {features.length} item{features.length > 1 ? "s" : ""} au total
           </p>
         </div>
-        <Button onClick={handleCreate} size="lg">
-          <Plus className="w-5 h-5 mr-2" />
-          Ajouter un Epic
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleCreate} size="lg">
+            <Plus className="w-5 h-5 mr-2" />
+            Ajouter un Epic
+          </Button>
+          
+          <Button 
+            onClick={normalizeOrdersForFeatures} 
+            variant="outline"
+            size="lg"
+            disabled={isNormalizing}
+            title="Réorganiser les orders séquentiellement (0, 1, 2...)"
+          >
+            <RefreshCw className={`w-5 h-5 mr-2 ${isNormalizing ? 'animate-spin' : ''}`} />
+            Normaliser Orders
+          </Button>
+        </div>
       </div>
 
       {/* Aide visuelle */}
       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
         <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-          📚 Hiérarchie des features
+          📚 Hiérarchie et Ordre
         </h3>
         <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
           <p><strong>Epic</strong> → Peut contenir des Features et des Bugs</p>
           <p className="ml-4"><strong>Feature</strong> → Peut contenir des Tasks et des Bugs</p>
           <p className="ml-8"><strong>Task</strong> → Peut contenir des Bugs</p>
           <p className="ml-12"><strong>Bug</strong> → Ne peut pas avoir d&apos;enfants</p>
+          <p className="mt-2"><strong>Ordre</strong>: Utilisez ↑ ↓ pour réorganiser les items. Cliquez sur &quot;Normaliser Orders&quot; si les orders semblent incorrects.</p>
         </div>
       </div>
 
