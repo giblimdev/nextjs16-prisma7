@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import AgriHelper from "./agriHelper"
 import Agri from "./agri";
+import HerbesPoulesComplet from "./HerbesPoulesComplet";
 
 export default function HomePage() {
   return (
@@ -197,11 +198,14 @@ export default function HomePage() {
 https://www.youtube.com/watch?v=Z5ZzQyOM1mI
 
         </p>
+        <p>https://www.gallinaponedora.com/9-hierbas-medicinales-para-pollos/#google_vignette</p>
+        <p>https://www.youtube.com/watch?v=k4OvrvzILaM</p>
+        <p>https://www.youtube.com/watch?v=BLFpHk3ce2E</p>
 
 </div>
 <Agri />
   <AgriHelper />
-
+<HerbesPoulesComplet />;
     </div>
   );
 }
