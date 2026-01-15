@@ -12,7 +12,8 @@ import {
   Sparkles,
   Plus,
 } from "lucide-react";
-
+import AgriHelper from "./agriHelper"
+import Agri from "./agri";
 
 export default function HomePage() {
   return (
@@ -191,7 +192,16 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
-      </div>
+        <p>https://www.youtube.com/watch?v=YwvAEn9B_K4 ^
+        </p><p>
+https://www.youtube.com/watch?v=Z5ZzQyOM1mI
+
+        </p>
+
+</div>
+<Agri />
+  <AgriHelper />
+
     </div>
   );
 }
